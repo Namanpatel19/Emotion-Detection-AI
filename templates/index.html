@@ -1,0 +1,250 @@
+﻿<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><title>EmoSense AI - Live Emotion Detection</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f0f2ff;--surface:#fff;--card:#fff;
+  --border:#e2e5f0;--border2:#c7cbdf;
+  --primary:#4f46e5;--primary-lt:#eef2ff;--primary-md:#c7d2fe;
+  --text:#1e1b4b;--text2:#374151;--muted:#6b7280;--muted2:#9ca3af;
+  --green:#059669;--green-lt:#d1fae5;--red:#dc2626;--red-lt:#fee2e2;
+  --shadow:0 1px 4px rgba(79,70,229,.08),0 4px 20px rgba(79,70,229,.06);
+  --r:14px;--tr:.18s ease;
+}
+html{font-size:15px}
+body{font-family:Inter,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;
+  background-image:radial-gradient(ellipse 60% 40% at 10% -5%,rgba(199,210,254,.5) 0%,transparent 60%),radial-gradient(ellipse 40% 30% at 95% 100%,rgba(186,230,253,.4) 0%,transparent 50%);}
+header{background:#fff;border-bottom:1px solid var(--border);box-shadow:0 1px 0 var(--border);padding:0 28px;height:62px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
+.logo{display:flex;align-items:center;gap:12px}
+.logo-mark{width:38px;height:38px;background:linear-gradient(135deg,var(--primary),#7c3aed);border-radius:10px;display:grid;place-items:center;box-shadow:0 4px 12px rgba(79,70,229,.35);}
+.logo-mark svg{width:20px;height:20px}
+.logo-name{font-family:Space Grotesk,sans-serif;font-size:1.15rem;font-weight:700;color:var(--text)}
+.logo-sub{font-size:.68rem;color:var(--muted);margin-top:1px}
+.hdr-right{display:flex;align-items:center;gap:10px}
+.status-badge{display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;font-size:.75rem;font-weight:600;background:var(--red-lt);color:var(--red);border:1px solid rgba(220,38,38,.2);transition:all var(--tr);}
+.status-badge.live{background:var(--green-lt);color:var(--green);border-color:rgba(5,150,105,.2)}
+.status-dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex-shrink:0}
+.status-badge.live .status-dot{animation:blink 1.4s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.hdr-stats{display:flex;gap:8px}
+.stat-pill{display:flex;flex-direction:column;align-items:center;padding:4px 14px;border-radius:20px;background:var(--primary-lt);border:1px solid var(--primary-md);min-width:64px;}
+.pill-v{font-family:Space Grotesk,sans-serif;font-size:.9rem;font-weight:700;color:var(--primary)}
+.pill-l{font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.wrap{display:grid;grid-template-columns:1fr 340px;gap:16px;padding:18px 28px;max-width:1400px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+.card-hdr{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid var(--border);background:linear-gradient(to bottom,#fafbff,#fff);}
+.card-title{display:flex;align-items:center;gap:7px;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);}
+.card-title svg{width:13px;height:13px}.card-body{padding:16px 18px}
+.cam-col{display:flex;flex-direction:column;gap:14px}
+.cam-wrap{position:relative;background:var(--primary-lt);aspect-ratio:4/3;overflow:hidden;border-bottom:1px solid var(--border)}
+#cam-canvas{display:block;width:100%;height:100%;object-fit:cover}
+.corner{position:absolute;width:20px;height:20px;border-color:var(--primary);border-style:solid;opacity:0;transition:opacity .4s}
+.corner.tl{top:8px;left:8px;border-width:2px 0 0 2px}.corner.tr{top:8px;right:8px;border-width:2px 2px 0 0}
+.corner.bl{bottom:8px;left:8px;border-width:0 0 2px 2px}.corner.br{bottom:8px;right:8px;border-width:0 2px 2px 0}
+.cam-col.live .corner{opacity:.55}
+.scan-line{position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,rgba(79,70,229,.35),transparent);animation:scan 3s linear infinite;opacity:0;transition:opacity .4s}
+.cam-col.live .scan-line{opacity:1}
+@keyframes scan{0%{top:0}100%{top:100%}}
+.recon{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:rgba(240,242,255,.9);backdrop-filter:blur(8px);z-index:10}
+.recon.show{display:flex}
+.spinner{width:34px;height:34px;border:3px solid var(--primary-md);border-top-color:var(--primary);border-radius:50%;animation:spin .75s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.recon-msg{font-size:.82rem;color:var(--muted);font-weight:500}
+.cam-tag{position:absolute;top:10px;left:10px;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-size:.72rem;font-weight:600;color:var(--primary);display:flex;align-items:center;gap:5px;box-shadow:var(--shadow);opacity:0;transition:opacity .3s}
+.cam-col.live .cam-tag{opacity:1}.cam-tag svg{width:11px;height:11px}
+.controls-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 18px}
+.btn{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border-radius:9px;border:none;font-family:Inter,sans-serif;font-size:.82rem;font-weight:600;cursor:pointer;transition:all var(--tr)}
+.btn svg{width:14px;height:14px;flex-shrink:0}.btn:active{transform:scale(.96)}
+.btn-start{background:linear-gradient(135deg,var(--primary),#7c3aed);color:#fff;box-shadow:0 4px 14px rgba(79,70,229,.35)}
+.btn-start:hover{box-shadow:0 6px 20px rgba(79,70,229,.5);transform:translateY(-1px)}
+.btn-stop{background:var(--red-lt);border:1px solid rgba(220,38,38,.25);color:var(--red)}.btn-stop:hover{background:#fecaca}
+.btn-snap{background:var(--surface);border:1px solid var(--border);color:var(--text2)}.btn-snap:hover{background:var(--bg)}
+.cam-switch-wrap{display:flex;align-items:center;gap:8px;margin-left:auto}
+.cam-switch-label{font-size:.72rem;color:var(--muted);font-weight:500;white-space:nowrap}
+.cam-switch-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:9px;border:1px solid var(--primary-md);background:var(--primary-lt);color:var(--primary);font-family:Inter,sans-serif;font-size:.8rem;font-weight:600;cursor:pointer;transition:all var(--tr);}
+.cam-switch-btn svg{width:14px;height:14px;flex-shrink:0;transition:transform .6s ease}
+.cam-switch-btn:hover{background:var(--primary-md);box-shadow:0 2px 8px rgba(79,70,229,.2)}
+.cam-switch-btn.spinning svg{transform:rotate(360deg)}
+.cam-name-txt{max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fps-wrap{display:flex;align-items:center;gap:8px}
+.fps-label{font-size:.68rem;color:var(--muted);font-weight:500}
+.fps-track{width:80px;height:6px;background:var(--border);border-radius:99px;overflow:hidden}
+.fps-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--primary),#7c3aed);transition:width .3s ease}
+.fps-num{font-family:Space Grotesk,sans-serif;font-size:.78rem;font-weight:700;color:var(--primary);min-width:40px}
+.emo-col{display:flex;flex-direction:column;gap:14px;overflow-y:auto;max-height:calc(100vh - 90px)}
+.emo-top{display:flex;flex-direction:column;align-items:center;padding:20px 18px 14px}
+.ring-wrap{position:relative;width:114px;height:114px;margin-bottom:12px}
+.ring-wrap svg{position:absolute;inset:0;transform:rotate(-90deg)}
+circle.rt{fill:none;stroke:var(--border);stroke-width:9}
+circle.rf{fill:none;stroke-width:9;stroke-linecap:round;stroke-dasharray:298;stroke-dashoffset:298;transition:stroke-dashoffset .45s ease,stroke .4s ease}
+.ring-inner{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.ring-emoji{font-size:2.2rem;line-height:1}
+.ring-pct{font-family:Space Grotesk,sans-serif;font-size:.78rem;font-weight:700;color:var(--text2)}
+.emo-name-big{font-family:Space Grotesk,sans-serif;font-size:1.4rem;font-weight:700;color:var(--text);transition:color .4s}
+.emo-conf-small{font-size:.72rem;color:var(--muted);margin-top:2px}
+.emo-bars{display:flex;flex-direction:column;gap:10px}
+.bar-row-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.bar-label{font-size:.73rem;font-weight:600;display:flex;align-items:center;gap:6px;color:var(--text2)}
+.bar-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.bar-pct{font-size:.73rem;font-weight:700;font-family:Space Grotesk,sans-serif}
+.bar-track{height:7px;background:var(--bg);border-radius:99px;overflow:hidden;border:1px solid var(--border)}
+.bar-fill{height:100%;border-radius:99px;width:0%;transition:width .28s cubic-bezier(.25,.46,.45,.94)}
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.stat-box{background:var(--primary-lt);border:1px solid var(--primary-md);border-radius:10px;padding:12px 14px;text-align:center;transition:background var(--tr)}
+.stat-box:hover{background:var(--primary-md)}
+.stat-val{font-family:Space Grotesk,sans-serif;font-size:1.2rem;font-weight:700;color:var(--primary)}
+.stat-lbl{font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
+.count-bars{display:flex;flex-direction:column;gap:5px;margin-top:4px}
+.count-row{display:flex;align-items:center;gap:8px;font-size:.7rem}
+.count-lbl{width:58px;color:var(--muted);text-align:right;font-weight:500}
+.count-track{flex:1;height:4px;background:var(--border);border-radius:99px;overflow:hidden}
+.count-fill{height:100%;border-radius:99px;transition:width .3s ease}
+.count-num{width:28px;color:var(--muted2);text-align:right}
+.chart-row{padding:0 28px 20px;max-width:1400px;margin:0 auto}
+.chart-legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:6px}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:.68rem;color:var(--muted);font-weight:500}
+.legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.toast{position:fixed;bottom:24px;right:24px;background:#fff;border:1px solid var(--green-lt);box-shadow:0 4px 20px rgba(5,150,105,.2);color:var(--green);padding:10px 18px;border-radius:10px;font-size:.82rem;font-weight:600;display:flex;align-items:center;gap:8px;opacity:0;transform:translateY(8px);transition:all .25s;z-index:999;pointer-events:none}
+.toast.show{opacity:1;transform:translateY(0)}
+@media(max-width:920px){.wrap{grid-template-columns:1fr}.emo-col{max-height:none}}
+@media(max-width:540px){header{padding:0 14px}.wrap,.chart-row{padding-left:12px;padding-right:12px}.hdr-stats{display:none}.cam-switch-wrap{margin-left:0}}
+</style></head><body>
+<header>
+  <div class="logo"><div class="logo-mark"><svg fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="2"><circle cx="12" cy="7" r="4"/><path d="M5 20c0-3.87 3.13-7 7-7s7 3.13 7 7"/><circle cx="19" cy="5" r="2" fill="white" stroke="none"/><circle cx="5" cy="5" r="2" fill="white" stroke="none"/></svg></div>
+    <div><div class="logo-name">EmoSense AI</div><div class="logo-sub">Real-Time Emotion Detection &mdash; CNN + FER-2013</div></div></div>
+  <div class="hdr-right">
+    <div class="hdr-stats">
+      <div class="stat-pill"><div class="pill-v" id="hdr-fps">&mdash;</div><div class="pill-l">FPS</div></div>
+      <div class="stat-pill"><div class="pill-v" id="hdr-faces">0</div><div class="pill-l">Faces</div></div>
+      <div class="stat-pill"><div class="pill-v" id="hdr-conf">&mdash;</div><div class="pill-l">Conf.</div></div>
+    </div>
+    <div class="status-badge" id="status-badge"><div class="status-dot"></div><span id="status-label">Offline</span></div>
+  </div>
+</header>
+<div class="wrap">
+  <div class="cam-col" id="cam-col">
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-title"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="15" height="10" rx="2"/><path d="M17 9l5-2v10l-5-2"/></svg>Live Camera Feed</span>
+        <span style="font-size:.68rem;color:var(--muted)" id="cam-res">640&times;480</span>
+      </div>
+      <div class="cam-wrap">
+        <canvas id="cam-canvas"></canvas>
+        <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
+        <div class="scan-line"></div>
+        <div class="cam-tag" id="cam-tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="15" height="10" rx="2"/><path d="M17 9l5-2v10l-5-2"/></svg><span id="cam-tag-name">Camera</span></div>
+        <div class="recon" id="recon"><div class="spinner"></div><div class="recon-msg" id="recon-msg">Connecting&hellip;</div></div>
+      </div>
+      <div class="controls-bar">
+        <button class="btn btn-start" id="btn-start"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>Start</button>
+        <button class="btn btn-stop" id="btn-stop"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>Stop</button>
+        <button class="btn btn-snap" id="btn-snap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>Snapshot</button>
+        <div class="cam-switch-wrap">
+          <span class="cam-switch-label">Camera:</span>
+          <button class="cam-switch-btn" id="btn-switch" title="Switch camera">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>
+            <span class="cam-name-txt" id="cam-name-btn">Loading&hellip;</span>
+          </button>
+        </div>
+        <div class="fps-wrap"><span class="fps-label">FPS</span><div class="fps-track"><div class="fps-fill" id="fps-fill"></div></div><span class="fps-num" id="fps-num">0</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="emo-col">
+    <div class="card">
+      <div class="card-hdr"><span class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>Detected Emotion</span><span style="font-size:.68rem;color:var(--muted)" id="session-dur">00:00:00</span></div>
+      <div class="emo-top">
+        <div class="ring-wrap"><svg viewBox="0 0 114 114" width="114" height="114"><circle class="rt" cx="57" cy="57" r="47"/><circle class="rf" cx="57" cy="57" r="47" id="conf-ring"/></svg><div class="ring-inner"><span class="ring-emoji" id="dom-emoji">&#128528;</span><span class="ring-pct" id="dom-pct">0%</span></div></div>
+        <div class="emo-name-big" id="dom-name">Neutral</div>
+        <div class="emo-conf-small" id="dom-conf">Waiting for face&hellip;</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-hdr"><span class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/></svg>Live Probabilities</span><span style="font-size:.65rem;color:var(--muted)">All 6 classes</span></div>
+      <div class="card-body"><div class="emo-bars" id="emo-bars"></div></div>
+    </div>
+    <div class="card">
+      <div class="card-hdr"><span class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Session Stats</span></div>
+      <div class="card-body">
+        <div class="stats-grid"><div class="stat-box"><div class="stat-val" id="st-frames">0</div><div class="stat-lbl">Frames</div></div><div class="stat-box"><div class="stat-val" id="st-fps">&mdash;</div><div class="stat-lbl">Avg FPS</div></div><div class="stat-box"><div class="stat-val" id="st-faces">0</div><div class="stat-lbl">Faces</div></div><div class="stat-box"><div class="stat-val" id="st-conf">&mdash;</div><div class="stat-lbl">Confidence</div></div></div>
+        <div style="margin-top:16px"><div style="font-size:.65rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Distribution</div><div class="count-bars" id="count-bars"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="chart-row"><div class="card">
+  <div class="card-hdr"><span class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23,6 13.5,15.5 8.5,10.5 1,18"/></svg>Emotion Timeline</span><span id="chart-range" style="font-size:.65rem;color:var(--muted)">No data yet</span></div>
+  <div style="padding:6px 12px 10px"><canvas id="emo-chart"></canvas><div class="chart-legend" id="chart-legend"></div></div>
+</div></div>
+<div class="toast" id="toast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20,6 9,17 4,12"/></svg><span id="toast-msg"></span></div>
+<script>
+const EMOTIONS={{ emotions|tojson }};
+const COLORS={{ colors|tojson }};
+const EMOJIS={Angry:"\u{1F621}",Fear:"\u{1F628}",Happy:"\u{1F604}",Neutral:"\u{1F610}",Sad:"\u{1F62D}",Surprise:"\u{1F632}"};
+const RING_C=2*Math.PI*47;
+const canvas=document.getElementById("cam-canvas"),ctx=canvas.getContext("2d");
+const camCol=document.getElementById("cam-col"),recon=document.getElementById("recon"),reconMsg=document.getElementById("recon-msg");
+const confRing=document.getElementById("conf-ring"),camTagName=document.getElementById("cam-tag-name"),camNameBtn=document.getElementById("cam-name-btn"),btnSwitch=document.getElementById("btn-switch");
+let isRunning=false,frameFails=0,framePend=false,chartData=[],lastHistLen=0,cameras=[],camIdx=0;
+function resizeCanvas(){const w=canvas.offsetWidth;canvas.width=w;canvas.height=Math.round(w*3/4)}
+resizeCanvas();window.addEventListener("resize",resizeCanvas);
+function drawPlaceholder(msg){
+  ctx.fillStyle="#eef2ff";ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.strokeStyle="rgba(79,70,229,0.07)";ctx.lineWidth=1;
+  for(let x=0;x<canvas.width;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,canvas.height);ctx.stroke()}
+  for(let y=0;y<canvas.height;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(canvas.width,y);ctx.stroke()}
+  ctx.fillStyle="rgba(79,70,229,0.28)";ctx.font="14px Inter";ctx.textAlign="center";ctx.fillText(msg,canvas.width/2,canvas.height/2);ctx.textAlign="left";
+}
+drawPlaceholder("Loading camera\u2026");
+const CIB=typeof createImageBitmap==="function";
+const _fbImg=new Image();
+_fbImg.onload=function(){ctx.drawImage(_fbImg,0,0,canvas.width,canvas.height);if(_fbImg._u){URL.revokeObjectURL(_fbImg._u);_fbImg._u=null}};
+async function frameLoop(){
+  if(!framePend){framePend=true;
+    try{const r=await fetch("/frame?_="+performance.now(),{cache:"no-store"});
+      if(r.ok){const b=await r.blob();
+        if(CIB){try{const bm=await createImageBitmap(b);ctx.drawImage(bm,0,0,canvas.width,canvas.height);bm.close()}
+          catch(e){const u=URL.createObjectURL(b);if(_fbImg._u)URL.revokeObjectURL(_fbImg._u);_fbImg._u=u;_fbImg.src=u}}
+        else{const u=URL.createObjectURL(b);if(_fbImg._u)URL.revokeObjectURL(_fbImg._u);_fbImg._u=u;_fbImg.src=u}
+        frameFails=0;recon.classList.remove("show");}else frameFails++;
+    }catch(e){frameFails++}
+    framePend=false;
+    if(frameFails>=20){frameFails=0;reconMsg.textContent="Reconnecting\u2026";recon.classList.add("show");if(!isRunning)autoStart();}
+  }
+  setTimeout(frameLoop,33);
+}
+frameLoop();
+function setLive(live){isRunning=live;document.getElementById("status-badge").classList.toggle("live",live);document.getElementById("status-label").textContent=live?"Live":"Offline";camCol.classList.toggle("live",live);if(!live)drawPlaceholder("Camera offline\u2026");}
+async function loadCameras(){try{const r=await fetch("/cameras");cameras=await r.json()}catch(e){cameras=[{index:0,name:"Camera 0",raw:"Camera 0"}]}updateCamBtn()}
+function updateCamBtn(){if(!cameras.length)return;const c=cameras[camIdx%cameras.length];camNameBtn.textContent=c.name.length>18?c.name.slice(0,17)+"\u2026":c.name;camTagName.textContent=c.name}
+btnSwitch.addEventListener("click",async()=>{
+  if(!cameras.length)return;camIdx=(camIdx+1)%cameras.length;const cam=cameras[camIdx];
+  btnSwitch.classList.add("spinning");setTimeout(()=>btnSwitch.classList.remove("spinning"),700);
+  reconMsg.textContent="Switching to "+cam.name+"\u2026";recon.classList.add("show");updateCamBtn();
+  try{await fetch("/control",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"switch_camera",camera:cam.index,name:cam.name})});setLive(true);setTimeout(()=>recon.classList.remove("show"),1500);}catch(e){recon.classList.remove("show")}
+});
+async function startCamera(idx){const cam=cameras[idx??camIdx]||cameras[0]||{index:0,name:"Camera 0"};reconMsg.textContent="Starting "+cam.name+"\u2026";recon.classList.add("show");
+  try{const r=await fetch("/control",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"start",camera:cam.index,name:cam.name})});const d=await r.json();if(d.status==="started"||d.status==="already_running"){setLive(true);setTimeout(()=>recon.classList.remove("show"),1200)}}catch(e){recon.classList.remove("show")}}
+async function stopCamera(){await fetch("/control",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"stop"})});setLive(false)}
+document.getElementById("btn-start").addEventListener("click",()=>startCamera());
+document.getElementById("btn-stop").addEventListener("click",stopCamera);
+document.getElementById("btn-snap").addEventListener("click",async()=>{const r=await fetch("/control",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"screenshot"})});const d=await r.json();if(d.status==="saved")showToast("Saved: "+d.file)});
+function buildBars(){document.getElementById("emo-bars").innerHTML=EMOTIONS.map(e=>`<div><div class="bar-row-hdr"><span class="bar-label"><span class="bar-dot" style="background:${COLORS[e]}"></span>${e}</span><span class="bar-pct" id="pct-${e}" style="color:${COLORS[e]}">0%</span></div><div class="bar-track"><div class="bar-fill" id="bar-${e}" style="background:${COLORS[e]}"></div></div></div>`).join("")}
+function buildCountBars(){document.getElementById("count-bars").innerHTML=EMOTIONS.map(e=>`<div class="count-row"><span class="count-lbl">${e}</span><div class="count-track"><div class="count-fill" id="cnt-${e}" style="background:${COLORS[e]}"></div></div><span class="count-num" id="cntv-${e}">0</span></div>`).join("")}
+function buildChartLegend(){document.getElementById("chart-legend").innerHTML=EMOTIONS.map(e=>`<div class="legend-item"><span class="legend-dot" style="background:${COLORS[e]}"></span>${e}</div>`).join("")}
+function updateRing(conf,color){const off=RING_C*(1-Math.min(conf,100)/100);confRing.style.strokeDasharray=RING_C;confRing.style.strokeDashoffset=Math.max(0,off);confRing.style.stroke=color;document.getElementById("dom-pct").textContent=Math.round(conf)+"%";}
+function updateEmotion(probs,top,conf){EMOTIONS.forEach(e=>{const p=(probs[e]??0)*100;document.getElementById("bar-"+e).style.width=p.toFixed(1)+"%";document.getElementById("pct-"+e).textContent=p.toFixed(0)+"%"});document.getElementById("dom-emoji").textContent=EMOJIS[top]||"\u{1F610}";const nm=document.getElementById("dom-name");nm.textContent=top;nm.style.color=COLORS[top]||"var(--muted)";document.getElementById("dom-conf").textContent=conf>0?conf.toFixed(1)+"% confidence":"Waiting for face\u2026";updateRing(conf,COLORS[top]||"#64748b");}
+function updateCounts(counts){const tot=Object.values(counts).reduce((a,b)=>a+b,0)||1;EMOTIONS.forEach(e=>{const n=counts[e]||0;document.getElementById("cnt-"+e).style.width=(n/tot*100).toFixed(1)+"%";document.getElementById("cntv-"+e).textContent=n})}
+function resizeChart(){const c=document.getElementById("emo-chart");c.width=c.offsetWidth;c.height=160;drawChart()}
+function drawChart(){const c=document.getElementById("emo-chart"),cx=c.getContext("2d"),W=c.width,H=c.height,N=chartData.length;cx.clearRect(0,0,W,H);if(N<2){cx.fillStyle="rgba(79,70,229,.2)";cx.font="12px Inter";cx.textAlign="center";cx.fillText("Start camera to record emotion timeline",W/2,H/2);return}const pL=10,pR=10,pT=8,pB=18,pw=W-pL-pR,ph=H-pT-pB;cx.strokeStyle="rgba(79,70,229,.06)";cx.lineWidth=1;for(let i=0;i<=4;i++){const y=pT+(ph*i/4);cx.beginPath();cx.moveTo(pL,y);cx.lineTo(W-pR,y);cx.stroke()}EMOTIONS.forEach(e=>{cx.beginPath();cx.strokeStyle=COLORS[e];cx.lineWidth=2;cx.lineJoin="round";cx.shadowBlur=4;cx.shadowColor=COLORS[e];chartData.forEach((d,i)=>{const x=pL+(i/(N-1))*pw,y=pT+ph-(d[e]??0)*ph;i===0?cx.moveTo(x,y):cx.lineTo(x,y)});cx.stroke();cx.shadowBlur=0});cx.fillStyle="rgba(79,70,229,.35)";cx.font="10px Inter";cx.textAlign="center";const step=Math.max(1,Math.floor(N/6));for(let i=0;i<N;i+=step){const x=pL+(i/(N-1))*pw;cx.fillText(chartData[i].ts||"",x,H-2)}}
+resizeChart();window.addEventListener("resize",resizeChart);
+async function poll(){try{const[er,hr]=await Promise.all([fetch("/emotion_data"),fetch("/history")]);const emo=await er.json(),hist=await hr.json();if(isRunning!==emo.running)setLive(emo.running);if(emo.current_cam_name){camTagName.textContent=emo.current_cam_name;const i=cameras.findIndex(c=>c.index===emo.current_cam);if(i>=0){camIdx=i;updateCamBtn()}}const fps=emo.fps||0;document.getElementById("hdr-fps").textContent=fps||"\u2014";document.getElementById("hdr-faces").textContent=emo.face_count;document.getElementById("hdr-conf").textContent=emo.confidence>0?emo.confidence+"%":"\u2014";document.getElementById("fps-fill").style.width=Math.min(100,fps/30*100)+"%";document.getElementById("fps-num").textContent=fps;updateEmotion(emo.emotion_probs,emo.top_emotion,emo.confidence);updateCounts(emo.emotion_counts);document.getElementById("st-frames").textContent=emo.total_frames.toLocaleString();document.getElementById("st-fps").textContent=fps||"\u2014";document.getElementById("st-faces").textContent=emo.face_count;document.getElementById("st-conf").textContent=emo.confidence>0?emo.confidence+"%":"\u2014";document.getElementById("session-dur").textContent=emo.session_duration||"00:00:00";if(hist.length!==lastHistLen){lastHistLen=hist.length;chartData=hist;drawChart();document.getElementById("chart-range").textContent="Last "+hist.length+" readings"}}catch(e){}}
+setInterval(poll,150);
+function showToast(msg){const t=document.getElementById("toast");document.getElementById("toast-msg").textContent=msg;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),3200)}
+async function autoStart(){await loadCameras();await startCamera(0)}
+buildBars();buildCountBars();buildChartLegend();
+(async()=>{await loadCameras();await startCamera(0);setTimeout(()=>{if(!isRunning)startCamera(0)},2500);setTimeout(()=>{if(!isRunning)startCamera(0)},6000)})();
+</script>
+</body></html>

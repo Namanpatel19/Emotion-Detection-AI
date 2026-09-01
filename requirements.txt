@@ -1,37 +1,11 @@
-# ─────────────────────────────────────────────────────────────────────────────
-# Requirements for Real-Time Human Emotion Detection
-# Install with:  pip install -r requirements.txt
-#
-# ⚠️  IMPORTANT: TensorFlow requires Python 3.10, 3.11, or 3.12
-#     Python 3.14 is NOT yet supported by TensorFlow.
-#     Install Python 3.11 from: https://www.python.org/downloads/release/python-3119/
-#     Then create your venv: py -3.11 -m venv .venv
-# ─────────────────────────────────────────────────────────────────────────────
-
-# Deep learning framework (Python 3.10–3.12 only)
-# GPU users: replace with  tensorflow[and-cuda]
-tensorflow>=2.13.0,<2.17.0
-
-# Computer vision
-opencv-python>=4.8.0
-
-# Numerical computing (numpy<2.0 required for TF 2.13–2.15 compatibility)
-numpy>=1.24.0,<2.0.0
-
-# Plotting training curves
-matplotlib>=3.7.0
-
-# Kaggle API — for downloading the FER-2013 dataset
-kaggle>=1.5.16
-
-# Image utilities
-Pillow>=10.0.0
-
-# Progress bars
-tqdm>=4.65.0
-
-# Train/val split, class weights
-scikit-learn>=1.3.0
-
-# Web dashboard
-flask>=3.0.0
+Flask==3.0.3
+opencv-python==4.9.0.80
+tensorflow==2.16.1
+mediapipe==0.10.14
+scikit-learn==1.4.2
+matplotlib==3.8.4
+seaborn==0.13.2
+numpy==1.26.4
+pandas==2.2.2
+deepface
+tf-keras

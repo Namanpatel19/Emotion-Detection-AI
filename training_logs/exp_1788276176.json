@@ -1,0 +1,17 @@
+{
+    "architecture": "EfficientNetB0",
+    "optimizer_stage1": "AdamW(1e-3)",
+    "optimizer_stage2": "AdamW(1e-5)",
+    "batch_size": 32,
+    "class_weights": {
+        "0": 1.0265017667844523,
+        "1": 9.39622641509434,
+        "2": 1.0011487650775417,
+        "3": 0.5684004565465515,
+        "4": 0.8260663507109005,
+        "5": 0.8492082825822168,
+        "6": 1.2935064935064935
+    },
+    "best_val_accuracy": 0.6178,
+    "total_training_time_seconds": 4478.39
+}

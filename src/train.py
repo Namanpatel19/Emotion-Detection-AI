@@ -1,209 +1,210 @@
-"""
-train.py
---------
-Entry point for training the emotion-recognition CNN.
-
-What this script does:
-  1. Loads the FER-2013 dataset via data_preprocessing.py
-  2. Builds the CNN from model.py
-  3. Sets up smart training callbacks:
-       • ModelCheckpoint — saves the best model weights automatically
-       • EarlyStopping   — stops training when val_loss stops improving
-       • ReduceLROnPlateau — lowers the learning rate when training stalls
-  4. Trains the model and saves it to models/emotion_model.h5
-  5. Plots training/validation accuracy and loss curves, saves to plots/
-
-Usage
-─────
-  cd "AI project"
-  python src/train.py
-
-Optional flags (edit CONSTANTS section below):
-  EPOCHS      — maximum training epochs (default 50, EarlyStopping may stop earlier)
-  BATCH_SIZE  — mini-batch size (default 64)
-"""
-
 import os
-import sys
+import json
+import time
+from pathlib import Path
 import numpy as np
+import tensorflow as tf
+from sklearn.model_selection import train_test_split
+from sklearn.utils.class_weight import compute_class_weight
 import matplotlib.pyplot as plt
 
-# Allow importing sibling modules regardless of working directory
-sys.path.insert(0, os.path.dirname(__file__))
+from data_preprocessing import tf_preprocess_image, augment_image, EMOTIONS, NUM_CLASSES
+from model import build_model, unfreeze_backbone
 
-from data_preprocessing import get_data_generators, EMOTION_LABELS, EMOTION_DISPLAY
-from model import build_emotion_cnn
+# ── Paths ────────────────────────────────────────────────────────
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+FER_TRAIN = PROJECT_ROOT / "data" / "fer2013" / "train"
+FER_TEST  = PROJECT_ROOT / "data" / "fer2013" / "test"
+MODEL_DIR = PROJECT_ROOT / "models"
+PLOTS_DIR = PROJECT_ROOT / "plots"
+LOGS_DIR  = PROJECT_ROOT / "training_logs"
 
-# TensorFlow / Keras
-import tensorflow as tf
-from tensorflow.keras.callbacks import (
-    ModelCheckpoint,
-    EarlyStopping,
-    ReduceLROnPlateau,
-    TensorBoard
+MODEL_PATH = MODEL_DIR / "emotion_model.keras"
+LABEL_PATH = MODEL_DIR / "label_map.json"
+
+# Create directories
+for d in [MODEL_DIR, PLOTS_DIR, LOGS_DIR]:
+    d.mkdir(parents=True, exist_ok=True)
+
+# ── Config ───────────────────────────────────────────────────────
+BATCH_SIZE = 32
+EPOCHS_STAGE_1 = 15
+EPOCHS_STAGE_2 = 25
+VAL_SPLIT = 0.15
+SEED = 42
+
+LABEL_MAP = {e: i for i, e in enumerate(EMOTIONS)}
+
+# ── Setup GPU & Mixed Precision ──────────────────────────────────
+print("=" * 65)
+print("  EmoSense AI  -  FER2013 Training Pipeline")
+print("=" * 65)
+
+print(f"TensorFlow version: {tf.__version__}")
+gpus = tf.config.list_physical_devices('GPU')
+if gpus:
+    print(f"GPU detected: {[g.name for g in gpus]}")
+    try:
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+    except RuntimeError as e:
+        print(e)
+    # Mixed precision for faster training on modern GPUs
+    # tf.keras.mixed_precision.set_global_policy('mixed_float16')
+else:
+    print("No GPU detected. Training will run on CPU.")
+
+# ── Load Dataset Paths ───────────────────────────────────────────
+def get_image_paths(dataset_dir):
+    paths = []
+    labels = []
+    for emotion, label_idx in LABEL_MAP.items():
+        emotion_dir = dataset_dir / emotion.lower()
+        if not emotion_dir.exists():
+            continue
+        for ext in ["*.jpg", "*.png"]:
+            for img_path in emotion_dir.glob(ext):
+                paths.append(str(img_path))
+                labels.append(label_idx)
+    return np.array(paths), np.array(labels, dtype=np.int32)
+
+print("\nScanning FER2013 dataset...")
+train_all_paths, train_all_labels = get_image_paths(FER_TRAIN)
+test_paths, test_labels = get_image_paths(FER_TEST)
+
+# Stratified Train/Val Split from the train directory
+idx = np.arange(len(train_all_paths))
+train_idx, val_idx = train_test_split(idx, test_size=VAL_SPLIT, stratify=train_all_labels, random_state=SEED)
+
+train_paths = train_all_paths[train_idx]
+train_labels = train_all_labels[train_idx]
+val_paths = train_all_paths[val_idx]
+val_labels = train_all_labels[val_idx]
+
+print(f"Input shape: (224, 224, 3)")
+print(f"Number of classes: {NUM_CLASSES}")
+print(f"Train samples: {len(train_paths)}")
+print(f"Validation samples: {len(val_paths)}")
+print(f"Test samples (untouched): {len(test_paths)}")
+
+# ── Handle Class Imbalance ───────────────────────────────────────
+cw = compute_class_weight("balanced", classes=np.arange(NUM_CLASSES), y=train_labels)
+class_weights = {i: float(v) for i, v in enumerate(cw)}
+
+print("\nClass Distribution and Weights:")
+for i, emotion in enumerate(EMOTIONS):
+    count = np.sum(train_labels == i)
+    print(f"  {emotion:10s} | Samples: {count:5d} | Weight: {class_weights[i]:.2f}")
+
+with open(LABEL_PATH, "w") as f:
+    json.dump(LABEL_MAP, f, indent=2)
+
+# ── Build tf.data Pipeline ───────────────────────────────────────
+def create_dataset(paths, labels, is_training=True):
+    ds = tf.data.Dataset.from_tensor_slices((paths, labels))
+    if is_training:
+        ds = ds.shuffle(len(paths), seed=SEED)
+    
+    ds = ds.map(tf_preprocess_image, num_parallel_calls=tf.data.AUTOTUNE)
+    
+    if is_training:
+        ds = ds.map(augment_image, num_parallel_calls=tf.data.AUTOTUNE)
+        
+    ds = ds.map(lambda i, l: (i, tf.one_hot(l, NUM_CLASSES)), num_parallel_calls=tf.data.AUTOTUNE)
+    ds = ds.batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
+    return ds
+
+train_ds = create_dataset(train_paths, train_labels, is_training=True)
+val_ds = create_dataset(val_paths, val_labels, is_training=False)
+
+# ── Build Model ──────────────────────────────────────────────────
+model, backbone = build_model(NUM_CLASSES)
+model.summary()
+
+# ── Stage 1: Train Head ──────────────────────────────────────────
+print("\n--- STAGE 1: Training Classification Head (Frozen Backbone) ---")
+model.compile(
+    optimizer=tf.keras.optimizers.AdamW(learning_rate=1e-3, weight_decay=1e-4),
+    loss="categorical_crossentropy",
+    metrics=["accuracy"]
 )
 
-# ── Constants — tweak these if needed ────────────────────────────────────────
-EPOCHS      = 50        # Max epochs; EarlyStopping will likely halt earlier
-BATCH_SIZE  = 64        # Reduce to 32 if you run out of GPU/CPU memory
-RANDOM_SEED = 42
+callbacks_1 = [
+    tf.keras.callbacks.ModelCheckpoint(str(MODEL_PATH), save_best_only=True, monitor="val_accuracy", mode="max", verbose=1),
+    tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=5, restore_best_weights=True, verbose=1),
+    tf.keras.callbacks.ReduceLROnPlateau(monitor="val_loss", factor=0.5, patience=2, min_lr=1e-5, verbose=1)
+]
 
-# Output paths (relative to project root)
-PROJECT_ROOT = os.path.join(os.path.dirname(__file__), '..')
-MODEL_DIR    = os.path.join(PROJECT_ROOT, 'models')
-PLOT_DIR     = os.path.join(PROJECT_ROOT, 'plots')
-MODEL_PATH   = os.path.join(MODEL_DIR, 'emotion_model.h5')
+start_time = time.time()
+hist1 = model.fit(
+    train_ds,
+    validation_data=val_ds,
+    epochs=EPOCHS_STAGE_1,
+    class_weight=class_weights,
+    callbacks=callbacks_1
+)
 
+# ── Stage 2: Fine-Tuning ─────────────────────────────────────────
+print("\n--- STAGE 2: Fine-Tuning Backbone ---")
+# Unfreeze the top layers of EfficientNetB0 (e.g., leaving the first 100 layers frozen)
+unfreeze_backbone(backbone, unfreeze_from_layer=150) # EfficientNetB0 has ~238 layers
 
-def setup_callbacks(model_path: str):
-    """
-    Return a list of Keras callbacks that help training automatically.
+model.compile(
+    optimizer=tf.keras.optimizers.AdamW(learning_rate=1e-5, weight_decay=1e-5),
+    loss="categorical_crossentropy",
+    metrics=["accuracy"]
+)
 
-    ModelCheckpoint  → saves model only when val_accuracy improves
-    EarlyStopping    → stops after 10 epochs of no val_loss improvement
-    ReduceLROnPlateau → halves the learning rate after 5 plateau epochs
-    """
-    os.makedirs(os.path.dirname(model_path), exist_ok=True)
+callbacks_2 = [
+    tf.keras.callbacks.ModelCheckpoint(str(MODEL_PATH), save_best_only=True, monitor="val_accuracy", mode="max", verbose=1),
+    tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=7, restore_best_weights=True, verbose=1),
+    tf.keras.callbacks.ReduceLROnPlateau(monitor="val_loss", factor=0.5, patience=3, min_lr=1e-7, verbose=1)
+]
 
-    callbacks = [
-        ModelCheckpoint(
-            filepath=model_path,
-            monitor='val_accuracy',
-            save_best_only=True,         # only save when accuracy improves
-            mode='max',
-            verbose=1
-        ),
-        EarlyStopping(
-            monitor='val_loss',
-            patience=10,                 # stop if val_loss doesn't improve for 10 epochs
-            restore_best_weights=True,   # roll back to the best checkpoint
-            verbose=1
-        ),
-        ReduceLROnPlateau(
-            monitor='val_loss',
-            factor=0.5,                  # multiply LR by 0.5 when plateau detected
-            patience=5,                  # wait 5 epochs before reducing
-            min_lr=1e-6,
-            verbose=1
-        ),
-    ]
-    return callbacks
+hist2 = model.fit(
+    train_ds,
+    validation_data=val_ds,
+    epochs=EPOCHS_STAGE_2,
+    class_weight=class_weights,
+    callbacks=callbacks_2
+)
+total_time = time.time() - start_time
 
+# ── Plot Training History ────────────────────────────────────────
+acc = hist1.history['accuracy'] + hist2.history['accuracy']
+val_acc = hist1.history['val_accuracy'] + hist2.history['val_accuracy']
+loss = hist1.history['loss'] + hist2.history['loss']
+val_loss = hist1.history['val_loss'] + hist2.history['val_loss']
 
-def plot_history(history, save_dir: str):
-    """
-    Generate and save training/validation accuracy & loss curves.
+plt.figure(figsize=(12, 4))
+plt.subplot(1, 2, 1)
+plt.plot(acc, label='Train')
+plt.plot(val_acc, label='Validation')
+plt.title('Accuracy')
+plt.legend()
+plt.subplot(1, 2, 2)
+plt.plot(loss, label='Train')
+plt.plot(val_loss, label='Validation')
+plt.title('Loss')
+plt.legend()
+plt.savefig(PLOTS_DIR / 'training_history.png')
+plt.close()
 
-    Parameters
-    ----------
-    history  : tf.keras.callbacks.History object returned by model.fit()
-    save_dir : directory to save the PNG file
-    """
-    os.makedirs(save_dir, exist_ok=True)
+# ── Save Experiment Log ──────────────────────────────────────────
+best_val_acc = max(val_acc)
+log_data = {
+    "architecture": "EfficientNetB0",
+    "optimizer_stage1": "AdamW(1e-3)",
+    "optimizer_stage2": "AdamW(1e-5)",
+    "batch_size": BATCH_SIZE,
+    "class_weights": class_weights,
+    "best_val_accuracy": round(float(best_val_acc), 4),
+    "total_training_time_seconds": round(total_time, 2)
+}
+log_file = LOGS_DIR / f"exp_{int(time.time())}.json"
+with open(log_file, "w") as f:
+    json.dump(log_data, f, indent=4)
 
-    acc      = history.history['accuracy']
-    val_acc  = history.history['val_accuracy']
-    loss     = history.history['loss']
-    val_loss = history.history['val_loss']
-    epochs   = range(1, len(acc) + 1)
-
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-    fig.suptitle('Training History — Emotion CNN', fontsize=14, fontweight='bold')
-
-    # ── Accuracy subplot ──
-    axes[0].plot(epochs, acc,     label='Train Accuracy', color='steelblue',   linewidth=2)
-    axes[0].plot(epochs, val_acc, label='Val Accuracy',   color='darkorange',  linewidth=2, linestyle='--')
-    axes[0].set_title('Accuracy')
-    axes[0].set_xlabel('Epoch')
-    axes[0].set_ylabel('Accuracy')
-    axes[0].legend()
-    axes[0].grid(alpha=0.3)
-    axes[0].set_ylim([0, 1])
-
-    # ── Loss subplot ──
-    axes[1].plot(epochs, loss,     label='Train Loss', color='steelblue',  linewidth=2)
-    axes[1].plot(epochs, val_loss, label='Val Loss',   color='darkorange', linewidth=2, linestyle='--')
-    axes[1].set_title('Loss')
-    axes[1].set_xlabel('Epoch')
-    axes[1].set_ylabel('Loss')
-    axes[1].legend()
-    axes[1].grid(alpha=0.3)
-
-    plt.tight_layout()
-    save_path = os.path.join(save_dir, 'training_curves.png')
-    plt.savefig(save_path, dpi=150)
-    print(f"\n[INFO] Training curves saved to: {save_path}")
-    plt.show()
-
-
-def train():
-    """Full training pipeline — call this to start training."""
-
-    print("=" * 60)
-    print("   Emotion Detection CNN — Training Script")
-    print("=" * 60)
-
-    # ── GPU check ──
-    gpus = tf.config.list_physical_devices('GPU')
-    if gpus:
-        print(f"[INFO] GPU detected: {[g.name for g in gpus]}")
-    else:
-        print("[INFO] No GPU detected — training on CPU (this may be slow).")
-        print("[TIP]  Use Google Colab for free GPU training.\n")
-
-    # ── Load data ──
-    print("\n[STEP 1/4] Loading and preprocessing FER-2013 dataset...")
-    train_gen, val_gen, class_weights, num_classes, label_map = get_data_generators(
-        batch_size=BATCH_SIZE
-    )
-
-    # Save the label map next to the model so inference can use it
-    import json
-    label_map_path = os.path.join(MODEL_DIR, 'label_map.json')
-    os.makedirs(MODEL_DIR, exist_ok=True)
-    with open(label_map_path, 'w') as f:
-        json.dump(label_map, f, indent=2)
-    print(f"[INFO] Label map saved to: {label_map_path}")
-
-    # ── Build model ──
-    print("\n[STEP 2/4] Building CNN architecture...")
-    model = build_emotion_cnn(num_classes=num_classes)
-    model.summary()
-
-    # ── Callbacks ──
-    print("\n[STEP 3/4] Setting up training callbacks...")
-    callbacks = setup_callbacks(MODEL_PATH)
-
-    # ── Train ──
-    print(f"\n[STEP 4/4] Training for up to {EPOCHS} epochs "
-          f"(EarlyStopping may stop earlier)...")
-    print(f"           Model will be saved to: {MODEL_PATH}\n")
-
-    history = model.fit(
-        train_gen,
-        epochs=EPOCHS,
-        steps_per_epoch=len(train_gen),
-        validation_data=val_gen,
-        validation_steps=len(val_gen),
-        callbacks=callbacks,
-        class_weight=class_weights,   # handle class imbalance
-        verbose=1
-    )
-
-    # ── Final metrics ──
-    best_val_acc  = max(history.history['val_accuracy'])
-    best_val_loss = min(history.history['val_loss'])
-    print("\n" + "=" * 60)
-    print(f"  Training complete!")
-    print(f"  Best val_accuracy : {best_val_acc:.4f}  ({best_val_acc*100:.1f}%)")
-    print(f"  Best val_loss     : {best_val_loss:.4f}")
-    print(f"  Model saved to    : {MODEL_PATH}")
-    print("=" * 60)
-
-    # ── Plot curves ──
-    plot_history(history, PLOT_DIR)
-
-
-# ── Entry point ───────────────────────────────────────────────────────────────
-if __name__ == '__main__':
-    train()
+print(f"\nTraining Complete! Best Validation Accuracy: {best_val_acc*100:.2f}%")
+print(f"Model saved to: {MODEL_PATH}")
+print(f"Run `python src/evaluate.py` to evaluate on the test set.")

@@ -147,14 +147,18 @@ header{
 /* ── Camera feed ── */
 .cam-wrap{
   position:relative;
-  background:#e2e8f0;
+  background:#1a1a2e; /* dark background for letterboxing */
   aspect-ratio:4/3;
+  max-height:55vh; /* Ensure it fits on smaller laptop screens without zooming out */
   overflow:hidden;
   border-bottom:1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 #cam-canvas{
   display:block;width:100%;height:100%;
-  object-fit:cover;
+  object-fit:contain; /* Prevent cropping */
   transition:opacity var(--tr);
   opacity:0.9;
 }

@@ -59,7 +59,7 @@ EMOTION_EMOJIS = {
 
 # ── Camera / Capture Settings ──────────────────────────────────────
 AUTO_START_CAM  = 0
-TARGET_FPS      = 30
+TARGET_FPS      = 20     # Lowered for better performance
 CAP_W, CAP_H    = 640, 480
 JPEG_QUALITY    = 72
 FACE_PAD_RATIO  = 0.1    # slight padding to capture full face
@@ -225,7 +225,7 @@ def _inference_worker():
             # The model massively over-predicts Neutral & Happy, and under-predicts
             # Angry, Disgust, Fear, Sad. These weights correct that real-world bias.
             # EMOTION_LABELS = ['Angry', 'Disgust', 'Fear', 'Happy', 'Neutral', 'Sad', 'Surprise']
-            inference_weights = np.array([5.0,   8.0,   3.5,   0.5,   2.0,  2.5,   2.5])
+            inference_weights = np.array([8.0,   7.0,   3.5,   0.5,   2.0,  2.5,   2.5])
             raw = raw * inference_weights
             raw = raw / (np.sum(raw) + 1e-9)
 

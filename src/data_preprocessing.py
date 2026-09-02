@@ -17,8 +17,9 @@ def preprocess_face(img_bgr):
     # Step 1: Convert BGR to RGB
     img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
 
-    # Step 2: Resize to 224x224 (EfficientNet input size) matching tf.image.resize lanczos3
-    img_resized = cv2.resize(img_rgb, (IMG_SIZE, IMG_SIZE), interpolation=cv2.INTER_LANCZOS4)
+    # Step 2: Resize to 224x224 (EfficientNet input size)
+    # Using INTER_LINEAR for performance (much faster than LANCZOS4)
+    img_resized = cv2.resize(img_rgb, (IMG_SIZE, IMG_SIZE), interpolation=cv2.INTER_LINEAR)
 
     # Step 3: EfficientNet expects inputs in [0, 255]
     return img_resized.astype(np.float32)

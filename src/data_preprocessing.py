@@ -6,47 +6,21 @@ IMG_SIZE = 224
 NUM_CLASSES = 7
 EMOTIONS = ["Angry", "Disgust", "Fear", "Happy", "Neutral", "Sad", "Surprise"]
 
-# CLAHE for contrast enhancement — applied once globally
-_clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-
 def preprocess_face(img_bgr):
     """
-    Standardized preprocessing for inference — matched to training pipeline.
-    
-    Pipeline:
-      1. Validate input
-      2. Convert BGR → Grayscale → apply CLAHE (contrast enhancement)
-      3. Merge CLAHE result back into 3-channel image
-      4. Denoise slightly to reduce webcam noise
-      5. Sharpen to restore edge clarity lost by resizing
-      6. Resize to 224x224 (EfficientNet input size)
-      7. Convert to float32 in [0, 255] range (EfficientNet expectation)
+    Standardized preprocessing for inference — matched exactly to training pipeline.
+    Takes raw BGR face crop, converts to RGB, resizes, and casts to float32.
     """
     if img_bgr is None or img_bgr.size == 0:
         return np.zeros((IMG_SIZE, IMG_SIZE, 3), dtype=np.float32)
 
-    # Step 1: Convert BGR → LAB color space (CLAHE works on Luminance channel)
-    img_lab = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2LAB)
-    L, a, b = cv2.split(img_lab)
+    # Step 1: Convert BGR to RGB
+    img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
 
-    # Step 2: Apply CLAHE to the L (lightness) channel
-    L_clahe = _clahe.apply(L)
-
-    # Step 3: Merge back and convert to RGB
-    img_lab_clahe = cv2.merge([L_clahe, a, b])
-    img_rgb = cv2.cvtColor(img_lab_clahe, cv2.COLOR_LAB2RGB)
-
-    # Step 4: Mild sharpening to restore face edge clarity
-    kernel = np.array([[0, -0.3, 0],
-                       [-0.3, 2.2, -0.3],
-                       [0, -0.3, 0]], dtype=np.float32)
-    img_rgb = cv2.filter2D(img_rgb, -1, kernel)
-    img_rgb = np.clip(img_rgb, 0, 255).astype(np.uint8)
-
-    # Step 5: Resize to model input size
+    # Step 2: Resize to 224x224 (EfficientNet input size) matching tf.image.resize lanczos3
     img_resized = cv2.resize(img_rgb, (IMG_SIZE, IMG_SIZE), interpolation=cv2.INTER_LANCZOS4)
 
-    # Step 6: EfficientNet expects inputs in [0, 255]
+    # Step 3: EfficientNet expects inputs in [0, 255]
     return img_resized.astype(np.float32)
 
 def tf_preprocess_image(file_path, label):
